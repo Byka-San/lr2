@@ -1,10 +1,11 @@
 package ru.mezenova.MySecondTestAppSpringBoot.controller;
 
-import java.text.SimpleDateFormat;
 import java.util.Date;
 import javax.validation.Valid;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BindingResult;
@@ -12,55 +13,67 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
+
 import ru.mezenova.MySecondTestAppSpringBoot.exception.ValidationFailedException;
-import ru.mezenova.MySecondTestAppSpringBoot.model.Request;
-import ru.mezenova.MySecondTestAppSpringBoot.model.Response;
+import ru.mezenova.MySecondTestAppSpringBoot.model.*;
+import ru.mezenova.MySecondTestAppSpringBoot.service.ModifyResponseService;
 import ru.mezenova.MySecondTestAppSpringBoot.service.ValidationService;
+import ru.mezenova.MySecondTestAppSpringBoot.util.DateTimeUtil;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+@Slf4j
 @RestController
 public class MyController {
     private final ValidationService validationService;
+    private final ModifyResponseService modifyResponseService;
+    private static final Logger logger = LoggerFactory.getLogger(MyController.class);
 
     @Autowired
-    public MyController(ValidationService validationService) {
-        this.validationService = validationService;
+    public MyController(ValidationService validationService, @Qualifier("ModifyOperationUidResponseService") ModifyResponseService modifyResponseService){
+        this.validationService=validationService;
+        this.modifyResponseService=modifyResponseService;
     }
 
     @PostMapping(value = "/feedback")
-    public ResponseEntity<Response> feedback(@Valid @RequestBody Request request, BindingResult bindingResult) {
+    public ResponseEntity<Response> feedback(@Valid @RequestBody Request request, BindingResult bindingResult ){
 
-        SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
-        Response response = Response.builder()
+        logger.info("Received request: {}", request);
+
+        Response response =  Response.builder()
                 .uid(request.getUid())
                 .operationUid(request.getOperationUid())
-                .systemTime(simpleDateFormat.format(new Date()))
-                .code("success")
-                .errorCode("")
-                .errorMessage("")
+                .systemTime(DateTimeUtil.getCustomFormat().format(new Date()))
+                .code(Codes.SUCCESS)
+                .errorCode(ErrorCodes.EMPTY)
+                .errorMessage(ErrorMessages.EMPTY)
                 .build();
 
-        if (bindingResult.hasErrors()) {
-            response.setCode("failed");
-            response.setErrorCode("ValidationException");
-            response.setErrorMessage("Ошибка валидации");
-            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-        }
+        logger.info("Generated response: {}", response);
 
         try {
             validationService.isValid(bindingResult);
-        } catch (ValidationFailedException e) {
-            response.setCode("failed");
-            response.setErrorCode("ValidationException");
-            response.setErrorMessage("Ошибка валидации");
-            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-        } catch (Exception e) {
-            response.setCode("failed");
-            response.setErrorCode("UnknownException");
-            response.setErrorMessage("Произошла непредвиденная ошибка");
-            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
         }
+        catch (ValidationFailedException e) {
+            response.setCode(Codes.FAILED);
+            response.setErrorCode(ErrorCodes.VALIDATION_EXCEPTION);
+            response.setErrorMessage(ErrorMessages.VALIDATION);
 
-        return new ResponseEntity<>(response, HttpStatus.OK);
+            logger.error("Validation failed. Response: {}", response, e);
+            return new ResponseEntity<Response>(response,HttpStatus.BAD_REQUEST);
+        }
+        catch(Exception e){
+
+            response.setCode(Codes.FAILED);
+            response.setErrorCode(ErrorCodes.UNKNOWN_EXCEPTION);
+            response.setErrorMessage(ErrorMessages.UNKNOWN);
+
+            logger.error("Unknown error. Response: {}", response, e);
+            return new ResponseEntity<Response>(response,HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+        modifyResponseService.modify(response);
+        logger.info("Modified response: {}", response);
+        return new ResponseEntity<>(response,HttpStatus.OK);
     }
 }

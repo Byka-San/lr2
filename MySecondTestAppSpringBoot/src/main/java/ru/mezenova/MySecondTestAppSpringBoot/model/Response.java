@@ -1,14 +1,18 @@
 package ru.mezenova.MySecondTestAppSpringBoot.model;
 
-import javax.validation.constraints.NotBlank;
 
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import javax.validation.constraints.NotBlank;
 
 
 @Data
 @Builder
-
+@NoArgsConstructor
+@AllArgsConstructor
 public class Response {
     @NotBlank
     private String uid;
@@ -19,10 +23,9 @@ public class Response {
     @NotBlank
     private String  systemTime;
     @NotBlank
-    private String code;
+    private Codes code;
     @NotBlank
-    private String errorCode;
+    private ErrorCodes errorCode;
     @NotBlank
-    private String errorMessage;
-
+    private ErrorMessages errorMessage;
 }
